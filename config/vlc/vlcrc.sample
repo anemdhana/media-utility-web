@@ -1,0 +1,74 @@
+# VLC media player preferences (ReplayGain + high-quality audio)
+# Copy this file to:
+#   Windows: %APPDATA%\vlc\vlcrc
+#   Linux:   ~/.config/vlc/vlcrc
+#   macOS:   ~/Library/Preferences/org.videolan.vlc/vlcrc
+# Close VLC before replacing this file.
+
+[core]
+audio=1
+
+# Stable default output path on Windows
+aout=directsound
+
+# Keep last user volume between sessions
+volume-save=1
+
+# Enqueue behavior for easier playlist testing
+one-instance=1
+one-instance-when-started-from-file=1
+playlist-enqueue=1
+playlist-autostart=1
+
+# Conservative local/network buffering
+file-caching=300
+network-caching=1000
+disc-caching=300
+
+[audio]
+# ReplayGain behavior
+# Use album gain for playlists processed in album mode
+audio-replay-gain-mode=album
+
+# Keep preamp neutral for accurate verification
+audio-replay-gain-preamp=0.0
+
+# Fallback gain when tags are missing
+audio-replay-gain-default=0.0
+
+# Enable software volume control and clipping prevention
+volume-save=1
+softvol=1
+norm-max-level=1.0
+
+# Prefer higher-quality resampling
+hq-resampling=1
+
+# Keep audio processing chain clean while validating ReplayGain
+audio-filter=
+
+[directsound]
+audio-device=default
+speaker-mode=2
+
+[equalizer]
+# Keep EQ neutral
+equalizer-preset=flat
+equalizer-bands=0 0 0 0 0 0 0 0 0 0
+equalizer-preamp=0.0
+equalizer-2pass=0
+
+[compressor]
+# Keep compressor disabled by default (enabling can mask ReplayGain behavior)
+compressor-rms-peak=0.0
+compressor-attack=25.0
+compressor-release=100.0
+compressor-threshold=-20.0
+compressor-ratio=6.0
+compressor-knee=2.5
+compressor-makeup-gain=7.0
+
+[normalizer]
+# Keep normalizer disabled by default
+norm-buff-size=20
+norm-max-level=1.0
