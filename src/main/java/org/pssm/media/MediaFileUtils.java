@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -99,7 +100,7 @@ public class MediaFileUtils {
      * Get list of labels for a media file from its 'comment' metadata tag.
      */
     public List<String> getLabelsOfFile(File file) {
-        String comment = getFileMetadataComment(file);
+        String comment = getMetadataTag(file, "comment");
         if (comment == null || comment.isEmpty()) return Collections.emptyList();
         return Arrays.stream(comment.split(","))
                 .map(String::trim)
@@ -111,29 +112,20 @@ public class MediaFileUtils {
      * Add one or more labels to the file's 'comment' tag (comma-separated).
      */
     public void addLabels(File file, List<String> labelsToAdd) throws IOException, InterruptedException {
-        Set<String> existing = new HashSet<>(getLabelsOfFile(file));
+        if (labelsToAdd == null || labelsToAdd.isEmpty()) {
+            return;
+        }
+
+        Set<String> existing = new LinkedHashSet<>(getLabelsOfFile(file));
         for (String label : labelsToAdd) {
-            existing.add(label.trim());
+            if (label != null) {
+                String trimmed = label.trim();
+                if (!trimmed.isEmpty()) {
+                    existing.add(trimmed);
+                }
+            }
         }
         setFileMetadataComment(file, String.join(",", existing));
-    }
-
-    /**
-     * Remove one or more labels from the file's 'comment' tag.
-     */
-    public void removeLabels(File file, List<String> labelsToRemove) throws IOException, InterruptedException {
-        Set<String> existing = new HashSet<>(getLabelsOfFile(file));
-        for (String label : labelsToRemove) {
-            existing.removeIf(l -> l.equalsIgnoreCase(label.trim()));
-        }
-        setFileMetadataComment(file, String.join(",", existing));
-    }
-
-    /**
-     * Clear all labels from the file's 'comment' tag.
-     */
-    public void clearAllLabels(File file) throws IOException, InterruptedException {
-        setFileMetadataComment(file, "");
     }
 
     /**
@@ -153,6 +145,9 @@ public class MediaFileUtils {
     public boolean containsLabels(File file, List<String> requiredLabels) {
         Set<String> fileLabels = getLabelsOfFile(file).stream().map(String::toLowerCase).collect(Collectors.toSet());
         for (String label : requiredLabels) {
+            if (label == null || label.isBlank()) {
+                continue;
+            }
             if (!fileLabels.contains(label.toLowerCase())) return false;
         }
         return true;
@@ -161,14 +156,17 @@ public class MediaFileUtils {
     // --- Metadata helpers ---
 
     /**
-     * Get the 'comment' tag from file metadata using ffprobe.
+     * Get a metadata tag from a media file using ffprobe.
      */
-    private String getFileMetadataComment(File file) {
+    public String getMetadataTag(File file, String tagName) {
+        if (tagName == null || tagName.isBlank()) {
+            return "";
+        }
         try {
             ProcessBuilder pb = new ProcessBuilder(
                     toolsDir.resolve("ffprobe").toString(),
                     "-v", "quiet",
-                    "-show_entries", "format_tags=comment",
+                    "-show_entries", "format_tags=" + tagName,
                     "-of", "default=noprint_wrappers=1:nokey=1",
                     file.getAbsolutePath()
             );
@@ -185,28 +183,56 @@ public class MediaFileUtils {
      * Set the 'comment' tag in file metadata using ffmpeg (in-place, atomic replace).
      */
     private void setFileMetadataComment(File file, String comment) throws IOException, InterruptedException {
-        // Write to temp file, then replace original
-        File temp = File.createTempFile("labeltmp", ".tmp", file.getParentFile());
+        String normalizedComment = normalizeLabels(comment);
+        String currentComment = normalizeLabels(String.join(",", getLabelsOfFile(file)));
+        if (Objects.equals(currentComment, normalizedComment)) {
+            return;
+        }
+
+        String extension = getExtension(file.getName());
+        File temp = File.createTempFile("labeltmp", extension.isEmpty() ? ".tmp" : "." + extension, file.getParentFile());
         try {
+            Files.deleteIfExists(temp.toPath());
             ProcessBuilder pb = new ProcessBuilder(
                     toolsDir.resolve("ffmpeg").toString(),
+                    "-y",
                     "-i", file.getAbsolutePath(),
+                    "-map", "0",
+                    "-map", "-0:d?",
                     "-map_metadata", "0",
+                    "-map_chapters", "0",
                     "-c", "copy",
-                    "-metadata", "comment=" + comment,
+                    "-metadata", "comment=" + normalizedComment,
                     temp.getAbsolutePath()
             );
             pb.redirectErrorStream(true);
             Process process = pb.start();
-            process.waitFor();
-            // Replace original file
-            Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            String output = new String(process.getInputStream().readAllBytes());
+            int exit = process.waitFor();
+            if (exit != 0) {
+                throw new IOException("Failed to update labels for " + file.getName() + ":\n" + output);
+            }
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } finally {
-            temp.delete();
+            Files.deleteIfExists(temp.toPath());
         }
     }
 
+    private String normalizeLabels(String labels) {
+        if (labels == null || labels.isBlank()) {
+            return "";
+        }
+        return Arrays.stream(labels.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .collect(Collectors.joining(","));
+    }
 
+    private String getExtension(String fileName) {
+        int idx = fileName.lastIndexOf('.');
+        return idx >= 0 ? fileName.substring(idx + 1) : "";
+    }
 
     private boolean isMediaFile(Path path) {
         String name = path.getFileName().toString().toLowerCase();

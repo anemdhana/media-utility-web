@@ -4,6 +4,9 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DisplayNameGeneration;
+import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +19,8 @@ import java.io.File;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@DisplayName("BDD style media split checks")
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class MediaSplitUtilsTest {
     private static final List<String> AUDIO_EXTS = Arrays.asList("mp3", "m4a", "aac", "wav", "flac");
     private static final List<String> VIDEO_EXTS = Arrays.asList("mp4", "webm", "mkv", "mov", "avi");
@@ -48,14 +53,14 @@ class MediaSplitUtilsTest {
     private String mediaFilesDir;
 
     @Test
-    void contextLoads() {
+    void given_the_spring_context_when_media_split_utils_are_loaded_then_they_are_available() {
         log.info("Checking if MediaSplitUtils is autowired");
         assertThat(splitUtils).isNotNull();
     }
 
 
     @Test
-    void splitAudioFile_randomFile() {
+    void given_an_existing_audio_file_when_i_split_it_then_a_non_empty_audio_clip_is_created() {
         File out = new File(mediaFilesDir, "audio_split_test_out.m4a");
         File input = pickTestFile(AUDIO_EXTS, out.getName(), "dummy.mp3", "dummy_out.m4a");
         log.info("About to call splitAudioFile on {}", input);
@@ -77,7 +82,7 @@ class MediaSplitUtilsTest {
         assertThat(out.length()).isGreaterThan(0L);
     }
     @Test
-    void splitVideoFile_randomFile() {
+    void given_an_existing_video_file_when_i_split_it_then_a_non_empty_video_clip_is_created() {
         File out = new File(mediaFilesDir, "video_split_test_out.mp4");
         File input = pickTestFile(VIDEO_EXTS, out.getName());
         log.info("About to call splitVideoFile on {}", input);
@@ -102,7 +107,7 @@ class MediaSplitUtilsTest {
 
 
     @Test
-    void splitAudioFile_runsWithDummyFile() {
+    void given_a_missing_audio_file_when_i_try_to_split_it_then_the_flow_fails_gracefully() {
         File dummy = new File(mediaFilesDir, "dummy.mp3");
         File out = new File(mediaFilesDir, "dummy_out.m4a");
         log.info("About to call splitAudioFile on {}", dummy);

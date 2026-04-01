@@ -29,6 +29,8 @@ public class MediaCommandRunner {
     private String videoResizeFragmentCmd;
     @Value("${video_split}")
     private String videoSplitCmd;
+    @Value("${calculate_replaygain}")
+    private String calculateReplayGainCmd;
 
     public int runAudioExtract(String videoId) throws IOException, InterruptedException {
         Map<String, String> params = new HashMap<>();
@@ -101,6 +103,26 @@ public class MediaCommandRunner {
         params.put("codecOptions", codecOptions != null ? codecOptions : "");
         String cmd = substitute(videoSplitCmd, params).trim();
         return runShell(cmd);
+    }
+
+    public int runReplayGain(String filePath) throws IOException, InterruptedException {
+        Map<String, String> params = new HashMap<>();
+        params.put("toolsLocation", toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/");
+        params.put("filePath", filePath);
+        String cmd = substitute(calculateReplayGainCmd, params).trim();
+        return runShell(cmd);
+    }
+
+    public int runBatchReplayGain(java.util.List<String> filePaths) throws IOException, InterruptedException {
+        if (filePaths == null || filePaths.isEmpty()) {
+            return 0;
+        }
+        StringBuilder cmd = new StringBuilder();
+        cmd.append(toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/").append("rsgain custom -a -s i");
+        for (String filePath : filePaths) {
+            cmd.append(" \"").append(filePath).append("\"");
+        }
+        return runShell(cmd.toString());
     }
 
     private String substitute(String template, Map<String, String> params) {

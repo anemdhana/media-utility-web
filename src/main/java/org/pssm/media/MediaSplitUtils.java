@@ -2,7 +2,6 @@ package org.pssm.media;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -22,15 +21,6 @@ public class MediaSplitUtils {
     public MediaSplitUtils(MediaCommandRunner mediaCommandRunner) {
         this.mediaCommandRunner = mediaCommandRunner;
     }
-
-    @Value("${tools_location}")
-    private String toolsLocation;
-
-    @Value("${default_audio_format:m4a}")
-    private String defaultAudioFormat;
-
-    @Value("${default_video_format:mp4}")
-    private String defaultVideoFormat;
 
     /**
      * Output quality presets.
@@ -193,10 +183,6 @@ public class MediaSplitUtils {
             }
             Files.copy(srcSidecar.toPath(), destSidecar.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
-    }
-
-    private boolean isVideoFile(String ext) {
-        return ext.equals("mp4") || ext.equals("webm") || ext.equals("mkv") || ext.equals("mov") || ext.equals("avi");
     }
 
     private String getExtension(String name) {
