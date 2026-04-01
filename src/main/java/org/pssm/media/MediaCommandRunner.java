@@ -15,6 +15,8 @@ public class MediaCommandRunner {
 
     @Value("${tools_location}")
     private String toolsLocation;
+    @Value("${download_location:${mediafiles_dir}}")
+    private String downloadLocation;
     @Value("${audio_extract}")
     private String audioExtractCmd;
     @Value("${convert_to_m4a}")
@@ -35,16 +37,24 @@ public class MediaCommandRunner {
     public int runAudioExtract(String videoId) throws IOException, InterruptedException {
         Map<String, String> params = new HashMap<>();
         params.put("toolsLocation", toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/");
+        params.put("downloadLocation", downloadLocation);
         params.put("videoId", videoId);
         String cmd = substitute(audioExtractCmd, params);
         return runShell(cmd);
     }
 
     public int runConvertToM4a(String inputFile, String outputFile) throws IOException, InterruptedException {
+        return runConvertToM4a(inputFile, outputFile, "-c:a aac -b:a 128k -ar 44100 -ac 2");
+    }
+
+    public int runConvertToM4a(String inputFile, String outputFile, String audioCodecOptions) throws IOException, InterruptedException {
         Map<String, String> params = new HashMap<>();
         params.put("toolsLocation", toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/");
         params.put("inputFile", inputFile);
         params.put("outputFile", outputFile);
+        params.put("audioCodecOptions", audioCodecOptions == null || audioCodecOptions.isBlank()
+                ? "-c:a aac -b:a 128k -ar 44100 -ac 2"
+                : audioCodecOptions);
         String cmd = substitute(convertToM4aCmd, params);
         return runShell(cmd);
     }

@@ -30,3 +30,4 @@ Feature: Playlist management and ReplayGain reporting
     When I apply ReplayGain to the playlist
     And I inspect the ReplayGain report for the playlist
     Then the ReplayGain report should mark the playlist as fully normalized
+    And the album volume gain should stay in a normal range across tracks without being too loud or too low

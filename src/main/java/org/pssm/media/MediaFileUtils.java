@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import org.pssm.media.MediaSplitUtils.OutputQuality;
+
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -24,12 +26,73 @@ import java.util.stream.Stream;
 public class MediaFileUtils {
     private final Path mediaDir;
     private final Path toolsDir;
+    private final Path downloadDir;
+    private final MediaCommandRunner mediaCommandRunner;
 
     public MediaFileUtils(
             @Value("${mediafiles_dir}") String mediaDir,
-            @Value("${tools_location}") String toolsDir) {
+            @Value("${tools_location}") String toolsDir,
+            MediaCommandRunner mediaCommandRunner,
+            @Value("${download_location:${mediafiles_dir}}") String downloadDir) {
         this.mediaDir = Paths.get(mediaDir);
         this.toolsDir = Paths.get(toolsDir);
+        this.mediaCommandRunner = mediaCommandRunner;
+        this.downloadDir = Paths.get(downloadDir);
+    }
+
+    /**
+     * Extract best available audio for a YouTube video id and return the downloaded file.
+     * If a matching audio file already exists in download_location, reuse it.
+     */
+    public File extractAudioFromYoutubeVideoId(String videoId) throws IOException, InterruptedException {
+        return extractAudioFromYoutubeVideoId(videoId, null);
+    }
+
+    /**
+     * Extract best available audio for a YouTube video id, optionally convert to a target quality preset,
+     * and return the resulting file path.
+     */
+    public File extractAudioFromYoutubeVideoId(String videoId, OutputQuality quality) throws IOException, InterruptedException {
+        String normalizedVideoId = videoId == null ? "" : videoId.trim();
+        if (normalizedVideoId.isEmpty()) {
+            throw new IllegalArgumentException("videoId must not be blank");
+        }
+
+        OutputQuality normalizedQuality = quality == null ? OutputQuality.YOUTUBE_UPLOAD : quality;
+
+        File sourceAudio = findDownloadedAudioByVideoId(normalizedVideoId);
+        if (sourceAudio == null) {
+            Files.createDirectories(downloadDir);
+            int exit = mediaCommandRunner.runAudioExtract(normalizedVideoId);
+            if (exit != 0) {
+                throw new IOException("Audio extraction failed with exit code " + exit + " for videoId " + normalizedVideoId);
+            }
+
+            sourceAudio = findDownloadedAudioByVideoId(normalizedVideoId);
+            if (sourceAudio == null) {
+                throw new IOException("Audio extraction completed but no downloaded file was found for videoId " + normalizedVideoId);
+            }
+        }
+
+        if (normalizedQuality == OutputQuality.YOUTUBE_UPLOAD) {
+            return sourceAudio;
+        }
+
+        File qualityFile = buildQualityOutputFile(sourceAudio, normalizedQuality);
+        if (qualityFile.exists() && qualityFile.length() > 0) {
+            return qualityFile;
+        }
+
+        int convertExit = mediaCommandRunner.runConvertToM4a(
+                sourceAudio.getAbsolutePath(),
+                qualityFile.getAbsolutePath(),
+                audioCodecOptionsFor(normalizedQuality)
+        );
+        if (convertExit != 0) {
+            throw new IOException("Audio conversion failed with exit code " + convertExit + " for videoId " + normalizedVideoId + " and quality " + normalizedQuality);
+        }
+
+        return qualityFile;
     }
 
     /**
@@ -237,6 +300,47 @@ public class MediaFileUtils {
     private boolean isMediaFile(Path path) {
         String name = path.getFileName().toString().toLowerCase();
         return name.endsWith(".mp3") || name.endsWith(".mp4") || name.endsWith(".wav") || name.endsWith(".m4a") || name.endsWith(".flac") || name.endsWith(".aac");
+    }
+
+    private boolean isAudioFile(Path path) {
+        String name = path.getFileName().toString().toLowerCase();
+        return name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".m4a") || name.endsWith(".flac") || name.endsWith(".aac") || name.endsWith(".ogg") || name.endsWith(".opus");
+    }
+
+    private File findDownloadedAudioByVideoId(String videoId) throws IOException {
+        if (!Files.exists(downloadDir)) {
+            return null;
+        }
+
+        try (Stream<Path> paths = Files.walk(downloadDir)) {
+            return paths.filter(Files::isRegularFile)
+                    .filter(this::isAudioFile)
+                    .map(Path::toFile)
+                    .filter(file -> file.getName().toLowerCase(Locale.ROOT).contains(videoId.toLowerCase(Locale.ROOT)))
+                    .filter(file -> file.length() > 0)
+                    .sorted(Comparator.comparingLong(File::lastModified)
+                            .thenComparingLong(File::length)
+                            .reversed())
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    private File buildQualityOutputFile(File sourceAudio, OutputQuality quality) {
+        String sourceName = sourceAudio.getName();
+        int dotIndex = sourceName.lastIndexOf('.');
+        String stem = dotIndex > 0 ? sourceName.substring(0, dotIndex) : sourceName;
+        String qualitySuffix = quality.name().toLowerCase(Locale.ROOT);
+        String outputName = stem + "-" + qualitySuffix + ".m4a";
+        return downloadDir.resolve(outputName).toFile();
+    }
+
+    private String audioCodecOptionsFor(OutputQuality quality) {
+        return switch (quality) {
+            case WHATSAPP -> "-c:a aac -b:a 96k -ar 44100 -ac 2";
+            case MUSIC_CONCERT -> "-c:a aac -b:a 256k -ar 48000 -ac 2";
+            case YOUTUBE_UPLOAD -> "-c:a aac -b:a 192k -ar 44100 -ac 2";
+        };
     }
 
     /**

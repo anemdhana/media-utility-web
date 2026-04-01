@@ -9,10 +9,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.File;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MediaPlaylistStepDefinitions extends MediaBddSupport {
+
+    private static final Pattern DB_VALUE_PATTERN = Pattern.compile("([-+]?\\d+(?:\\.\\d+)?)\\s*dB", Pattern.CASE_INSENSITIVE);
+    private static final double MIN_NORMAL_GAIN_DB = -15.0;
+    private static final double MAX_NORMAL_GAIN_DB = 10.0;
 
     @Autowired
     private MediaPlaylistUtils playlistUtils;
@@ -98,5 +104,26 @@ public class MediaPlaylistStepDefinitions extends MediaBddSupport {
         assertThat(report.summary().fullyNormalized()).isTrue();
         assertThat(report.summary().missingReplayGainCount()).isZero();
         assertThat(report.summary().normalizedCount()).isEqualTo(report.summary().trackCount());
+    }
+
+    @Then("the album volume gain should stay in a normal range across tracks without being too loud or too low")
+    public void theAlbumVolumeGainShouldStayInANormalRangeAcrossTracksWithoutBeingTooLoudOrTooLow() {
+        assertThat(report).isNotNull();
+        assertThat(report.tracks()).isNotEmpty();
+
+        assertThat(report.tracks()).allSatisfy(track -> {
+            assertThat(track.hasReplayGain()).isTrue();
+            String gainText = track.replayGainAlbum().isBlank() ? track.replayGainTrack() : track.replayGainAlbum();
+            double gainDb = parseGainInDb(gainText);
+            assertThat(gainDb)
+                    .as("ReplayGain dB for %s should be between %s and %s", track.fileName(), MIN_NORMAL_GAIN_DB, MAX_NORMAL_GAIN_DB)
+                    .isBetween(MIN_NORMAL_GAIN_DB, MAX_NORMAL_GAIN_DB);
+        });
+    }
+
+    private double parseGainInDb(String gainText) {
+        Matcher matcher = DB_VALUE_PATTERN.matcher(gainText == null ? "" : gainText.trim());
+        assertThat(matcher.find()).as("Expected ReplayGain value in dB format but found: %s", gainText).isTrue();
+        return Double.parseDouble(matcher.group(1));
     }
 }
