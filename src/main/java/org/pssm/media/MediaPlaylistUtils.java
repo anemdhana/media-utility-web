@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -188,6 +189,66 @@ public class MediaPlaylistUtils {
         return totalDuration;
     }
 
+    /**
+     * Create an M3U8 playlist from files matching the provided label.
+     * Output format: <label_name>+<total_duration_seconds>.m3u8
+     */
+    public File createPlaylistByLabel(String label) throws IOException, InterruptedException {
+        String normalizedLabel = normalizeRequiredInput(label, "label");
+        List<File> labeledFiles = mediaFileUtils.filterMediaFiles(null, normalizedLabel).stream()
+                .filter(File::exists)
+                .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName()))
+                .collect(Collectors.toList());
+
+        double totalDurationSeconds = 0.0;
+        for (File file : labeledFiles) {
+            try {
+                totalDurationSeconds += mediaFileUtils.getDuration(file);
+            } catch (Exception ex) {
+                log.warn("Could not read duration for {} while creating label playlist: {}", file.getAbsolutePath(), ex.getMessage());
+            }
+        }
+
+        String safeLabel = sanitizeForFileName(normalizedLabel);
+        long roundedDuration = Math.max(0L, Math.round(totalDurationSeconds));
+        String playlistFileName = safeLabel + "+" + roundedDuration + ".m3u8";
+        File playlistFile = resolvePlaylistFile(playlistFileName);
+
+        createM3u8Playlist(playlistFile, labeledFiles, false);
+        return playlistFile;
+    }
+
+    /**
+     * Copy all playlist tracks and the playlist file to the target folder.
+     * The copied playlist references the copied tracks in the target folder.
+     */
+    public File copyPlaylistAndTracksToFolder(String playlistName, String targetFolder) throws IOException, InterruptedException {
+        String normalizedPlaylistName = normalizeRequiredInput(playlistName, "playlistName");
+        String normalizedTargetFolder = normalizeRequiredInput(targetFolder, "targetFolder");
+
+        File sourcePlaylist = resolvePlaylistFile(normalizedPlaylistName);
+        List<File> sourceTracks = readPlaylistEntries(sourcePlaylist);
+
+        Path targetDir = Paths.get(normalizedTargetFolder).toAbsolutePath().normalize();
+        Files.createDirectories(targetDir);
+
+        List<File> copiedTracks = new ArrayList<>();
+        for (File sourceTrack : sourceTracks) {
+            if (!sourceTrack.exists() || !sourceTrack.isFile()) {
+                throw new IOException("Playlist track not found: " + sourceTrack.getAbsolutePath());
+            }
+            Path targetTrackPath = targetDir.resolve(sourceTrack.getName());
+            Files.copy(sourceTrack.toPath(), targetTrackPath, StandardCopyOption.REPLACE_EXISTING);
+            copiedTracks.add(targetTrackPath.toFile());
+        }
+
+        String sourcePlaylistName = sourcePlaylist.getName();
+        Path targetPlaylistPath = targetDir.resolve(sourcePlaylistName);
+        File targetPlaylistFile = targetPlaylistPath.toFile();
+        createM3u8Playlist(targetPlaylistFile, copiedTracks, false);
+        return targetPlaylistFile;
+    }
+
     private void writePlaylist(File playlistFile, List<File> mediaFiles) throws IOException, InterruptedException {
         Files.createDirectories(playlistFile.toPath().toAbsolutePath().getParent());
 
@@ -248,12 +309,21 @@ public class MediaPlaylistUtils {
 
     private File resolvePlaylistEntry(String entry, File playlistParentDir) {
         String decodedEntry = URLDecoder.decode(entry, StandardCharsets.UTF_8);
-        try {
-            if (decodedEntry.startsWith("file:")) {
+        if (decodedEntry.startsWith("file:")) {
+            try {
                 return Paths.get(URI.create(decodedEntry)).toFile();
+            } catch (Exception ex) {
+                // Fallback for non-escaped file URIs like file:/C:/path with spaces
+                String filePath = decodedEntry.substring("file:".length());
+                if (filePath.startsWith("///")) {
+                    filePath = filePath.substring(3);
+                } else if (filePath.startsWith("//")) {
+                    filePath = filePath.substring(2);
+                } else if (filePath.startsWith("/")) {
+                    filePath = filePath.substring(1);
+                }
+                return Paths.get(filePath).toFile();
             }
-        } catch (Exception ex) {
-            log.debug("Could not parse playlist URI {}: {}", decodedEntry, ex.getMessage());
         }
 
         Path entryPath = Paths.get(decodedEntry);
@@ -291,6 +361,23 @@ public class MediaPlaylistUtils {
 
     private String defaultString(String value) {
         return value == null ? "" : value;
+    }
+
+    private String normalizeRequiredInput(String value, String fieldName) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return normalized;
+    }
+
+    private String sanitizeForFileName(String value) {
+        String normalized = value == null ? "value" : value.trim();
+        normalized = normalized.replace(':', '-').replace(' ', '-');
+        normalized = normalized.replaceAll("[^A-Za-z0-9._-]", "-");
+        normalized = normalized.replaceAll("-+", "-");
+        normalized = normalized.replaceAll("^[.-]+|[.-]+$", "");
+        return normalized.isBlank() ? "value" : normalized;
     }
 
     public record PlaylistReplayGainTrack(String fileName,

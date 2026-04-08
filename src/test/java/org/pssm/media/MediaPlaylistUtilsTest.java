@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +25,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @DisplayName("BDD style playlist and ReplayGain checks")
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class MediaPlaylistUtilsTest {
+
+    private static final Pattern LABEL_PLAYLIST_NAME_PATTERN = Pattern.compile("^heart-melting-tunes\\+\\d+\\.m3u8$");
 
     @Autowired
     private MediaPlaylistUtils playlistUtils;
@@ -139,5 +142,33 @@ class MediaPlaylistUtilsTest {
             assertThat(trackReport.replayGainAlbum()).isNotBlank();
             assertThat(trackReport.note()).isBlank();
         });
+    }
+
+    @Test
+    void given_a_label_when_i_create_a_playlist_then_the_playlist_name_contains_label_and_total_duration() throws Exception {
+        File playlistFile = playlistUtils.createPlaylistByLabel("heart-melting-tunes");
+
+        assertThat(playlistFile).exists().isFile();
+        assertThat(playlistFile.getName()).matches(LABEL_PLAYLIST_NAME_PATTERN);
+        assertThat(playlistUtils.getPlaylistTracks(playlistFile)).isNotEmpty();
+    }
+
+    @Test
+    void given_a_playlist_when_i_copy_it_to_target_folder_then_tracks_and_playlist_are_copied() throws Exception {
+        File track = copySmallMediaFile(true);
+        File sourcePlaylist = File.createTempFile("playlist-copy-source-", ".m3u8");
+        sourcePlaylist.deleteOnExit();
+        playlistUtils.createM3u8Playlist(sourcePlaylist, List.of(track), false);
+
+        Path targetFolder = Files.createTempDirectory("playlist-copy-target-");
+        File copiedPlaylist = playlistUtils.copyPlaylistAndTracksToFolder(sourcePlaylist.getAbsolutePath(), targetFolder.toString());
+
+        assertThat(copiedPlaylist).exists().isFile();
+        assertThat(copiedPlaylist.getParentFile().getAbsolutePath()).isEqualTo(targetFolder.toFile().getAbsolutePath());
+
+        List<File> copiedTracks = playlistUtils.getPlaylistTracks(copiedPlaylist);
+        assertThat(copiedTracks).hasSize(1);
+        assertThat(copiedTracks.get(0)).exists().isFile();
+        assertThat(copiedTracks.get(0).getParentFile().getAbsolutePath()).isEqualTo(targetFolder.toFile().getAbsolutePath());
     }
 }

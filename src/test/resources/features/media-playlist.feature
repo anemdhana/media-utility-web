@@ -31,3 +31,16 @@ Feature: Playlist management and ReplayGain reporting
     And I inspect the ReplayGain report for the playlist
     Then the ReplayGain report should mark the playlist as fully normalized
     And the album volume gain should stay in a normal range across tracks without being too loud or too low
+
+  @playlist-label-generation
+  Scenario: Create playlist by label with label and total duration in filename
+    Given a copied audio file labeled "heart-melting-tunes"
+    When I create a playlist from label "heart-melting-tunes"
+    Then the created label playlist filename should include the label and total duration
+    And the created label playlist should contain at least 1 tracks
+
+  @playlist-copy-to-target
+  Scenario: Copy playlist and all tracks to a target folder
+    Given a playlist with one copied audio track
+    When I copy the playlist and tracks to a temporary target folder
+    Then the copied playlist and all tracks should exist in the target folder

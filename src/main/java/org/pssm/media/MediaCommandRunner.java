@@ -15,7 +15,7 @@ public class MediaCommandRunner {
 
     @Value("${tools_location}")
     private String toolsLocation;
-    @Value("${download_location:${mediafiles_dir}}")
+    @Value("${mediafiles_dir}")
     private String downloadLocation;
     @Value("${audio_extract}")
     private String audioExtractCmd;

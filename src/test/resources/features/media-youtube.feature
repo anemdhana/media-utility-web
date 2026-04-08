@@ -12,10 +12,41 @@ Feature: YouTube audio extraction
     And the extracted audio filename should contain the video id
     And the extracted audio file should be non-empty
 
-  @youtube-audio-extract-XxwTe1RhEZI-whatsapp
-  Scenario: Extract audio from YouTube video XxwTe1RhEZI with WhatsApp quality
-    Given the YouTube video id "XxwTe1RhEZI"
+  @youtube-audio-extract-fjCYYnfzRvI-whatsapp
+  Scenario: Extract audio from YouTube video fjCYYnfzRvI with WhatsApp quality
+    Given the YouTube video id "fjCYYnfzRvI"
     When I extract the audio for the YouTube video with "WHATSAPP" quality
     Then the extracted audio file should exist
     And the extracted audio filename should contain the video id
     And the extracted audio file should be non-empty
+
+  @youtube-audio-extract-B9j3pYC7Z20-compact
+  Scenario: Extract audio from YouTube video B9j3pYC7Z20 with compact size quality
+    Given the YouTube video id "B9j3pYC7Z20"
+    When I extract the audio for the YouTube video with "COMPACT_SIZE" quality
+    Then the extracted audio file should exist
+    And the extracted audio filename should contain the video id
+    And the extracted audio file should be non-empty
+
+  @youtube-audio-extract-B9j3pYC7Z20-compact-speech
+  Scenario: Extract audio from YouTube video B9j3pYC7Z20 with compact size speech quality
+    Given the YouTube video id "B9j3pYC7Z20"
+    When I extract the audio for the YouTube video with "COMPACT_SIZE_SPEECH" quality
+    Then the extracted audio file should exist
+    And the extracted audio filename should contain the video id
+    And the extracted audio file should be non-empty
+
+  @youtube-audio-extract-B9j3pYC7Z20-compact-music
+  Scenario: Extract audio from YouTube video B9j3pYC7Z20 with compact size music quality
+    Given the YouTube video id "B9j3pYC7Z20"
+    When I extract the audio for the YouTube video with "COMPACT_SIZE_MUSIC" quality
+    Then the extracted audio file should exist
+    And the extracted audio filename should contain the video id
+    And the extracted audio file should be non-empty
+
+  @youtube-media-input-properties
+  Scenario: Extract YouTube audio based on configured media input properties
+    Given the media input properties file "media-input.properties"
+    When I execute the configured media feature
+    Then all configured YouTube downloads should exist
+    And the configured label should be applied to all downloaded files when provided

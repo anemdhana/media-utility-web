@@ -26,23 +26,20 @@ import java.util.stream.Stream;
 public class MediaFileUtils {
     private final Path mediaDir;
     private final Path toolsDir;
-    private final Path downloadDir;
     private final MediaCommandRunner mediaCommandRunner;
 
     public MediaFileUtils(
             @Value("${mediafiles_dir}") String mediaDir,
             @Value("${tools_location}") String toolsDir,
-            MediaCommandRunner mediaCommandRunner,
-            @Value("${download_location:${mediafiles_dir}}") String downloadDir) {
+            MediaCommandRunner mediaCommandRunner) {
         this.mediaDir = Paths.get(mediaDir);
         this.toolsDir = Paths.get(toolsDir);
         this.mediaCommandRunner = mediaCommandRunner;
-        this.downloadDir = Paths.get(downloadDir);
     }
 
     /**
      * Extract best available audio for a YouTube video id and return the downloaded file.
-     * If a matching audio file already exists in download_location, reuse it.
+     * If a matching audio file already exists in mediafiles_dir, reuse it.
      */
     public File extractAudioFromYoutubeVideoId(String videoId) throws IOException, InterruptedException {
         return extractAudioFromYoutubeVideoId(videoId, null);
@@ -60,9 +57,16 @@ public class MediaFileUtils {
 
         OutputQuality normalizedQuality = quality == null ? OutputQuality.YOUTUBE_UPLOAD : quality;
 
+        if (normalizedQuality != OutputQuality.YOUTUBE_UPLOAD) {
+            File existingQualityFile = findDownloadedAudioByVideoIdAndQuality(normalizedVideoId, normalizedQuality);
+            if (existingQualityFile != null) {
+                return existingQualityFile;
+            }
+        }
+
         File sourceAudio = findDownloadedAudioByVideoId(normalizedVideoId);
         if (sourceAudio == null) {
-            Files.createDirectories(downloadDir);
+            Files.createDirectories(mediaDir);
             int exit = mediaCommandRunner.runAudioExtract(normalizedVideoId);
             if (exit != 0) {
                 throw new IOException("Audio extraction failed with exit code " + exit + " for videoId " + normalizedVideoId);
@@ -75,6 +79,10 @@ public class MediaFileUtils {
         }
 
         if (normalizedQuality == OutputQuality.YOUTUBE_UPLOAD) {
+            return sourceAudio;
+        }
+
+        if (isQualityOutputFile(sourceAudio, normalizedQuality)) {
             return sourceAudio;
         }
 
@@ -308,11 +316,11 @@ public class MediaFileUtils {
     }
 
     private File findDownloadedAudioByVideoId(String videoId) throws IOException {
-        if (!Files.exists(downloadDir)) {
+        if (!Files.exists(mediaDir)) {
             return null;
         }
 
-        try (Stream<Path> paths = Files.walk(downloadDir)) {
+        try (Stream<Path> paths = Files.walk(mediaDir)) {
             return paths.filter(Files::isRegularFile)
                     .filter(this::isAudioFile)
                     .map(Path::toFile)
@@ -332,11 +340,40 @@ public class MediaFileUtils {
         String stem = dotIndex > 0 ? sourceName.substring(0, dotIndex) : sourceName;
         String qualitySuffix = quality.name().toLowerCase(Locale.ROOT);
         String outputName = stem + "-" + qualitySuffix + ".m4a";
-        return downloadDir.resolve(outputName).toFile();
+        return mediaDir.resolve(outputName).toFile();
+    }
+
+    private File findDownloadedAudioByVideoIdAndQuality(String videoId, OutputQuality quality) throws IOException {
+        if (!Files.exists(mediaDir)) {
+            return null;
+        }
+
+        try (Stream<Path> paths = Files.walk(mediaDir)) {
+            return paths.filter(Files::isRegularFile)
+                    .filter(this::isAudioFile)
+                    .map(Path::toFile)
+                    .filter(file -> file.getName().toLowerCase(Locale.ROOT).contains(videoId.toLowerCase(Locale.ROOT)))
+                    .filter(file -> isQualityOutputFile(file, quality))
+                    .filter(file -> file.length() > 0)
+                    .sorted(Comparator.comparingLong(File::lastModified)
+                            .thenComparingLong(File::length)
+                            .reversed())
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    private boolean isQualityOutputFile(File file, OutputQuality quality) {
+        String lowerName = file.getName().toLowerCase(Locale.ROOT);
+        String qualitySuffix = "-" + quality.name().toLowerCase(Locale.ROOT) + ".m4a";
+        return lowerName.endsWith(qualitySuffix);
     }
 
     private String audioCodecOptionsFor(OutputQuality quality) {
         return switch (quality) {
+            case COMPACT_SIZE -> "-c:a aac -b:a 80k -ar 44100 -ac 2";
+            case COMPACT_SIZE_SPEECH -> "-c:a aac -b:a 48k -ar 32000 -ac 1";
+            case COMPACT_SIZE_MUSIC -> "-c:a aac -b:a 72k -ar 44100 -ac 2";
             case WHATSAPP -> "-c:a aac -b:a 96k -ar 44100 -ac 2";
             case MUSIC_CONCERT -> "-c:a aac -b:a 256k -ar 48000 -ac 2";
             case YOUTUBE_UPLOAD -> "-c:a aac -b:a 192k -ar 44100 -ac 2";

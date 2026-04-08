@@ -24,27 +24,25 @@ class MediaFileUtilsYoutubeExtractTest {
 
     private MediaCommandRunner commandRunner;
     private MediaFileUtils utils;
-    private Path downloadDir;
+    private Path mediaDir;
 
     @BeforeEach
     void setUp() throws Exception {
         commandRunner = mock(MediaCommandRunner.class);
 
-        Path mediaDir = tempDir.resolve("media");
+        mediaDir = tempDir.resolve("media");
         Path toolsDir = tempDir.resolve("tools");
-        downloadDir = tempDir.resolve("downloads");
 
         Files.createDirectories(mediaDir);
         Files.createDirectories(toolsDir);
-        Files.createDirectories(downloadDir);
 
-        utils = new MediaFileUtils(mediaDir.toString(), toolsDir.toString(), commandRunner, downloadDir.toString());
+        utils = new MediaFileUtils(mediaDir.toString(), toolsDir.toString(), commandRunner);
     }
 
     @Test
     void given_existing_download_when_extract_audio_then_it_reuses_existing_file_without_downloading_again() throws Exception {
         String videoId = "abc123XYZ";
-        Path existingFile = downloadDir.resolve("sample-title-" + videoId + ".m4a");
+        Path existingFile = mediaDir.resolve("sample-title-" + videoId + ".m4a");
         Files.writeString(existingFile, "audio");
 
         File result = utils.extractAudioFromYoutubeVideoId(videoId);
@@ -59,7 +57,7 @@ class MediaFileUtilsYoutubeExtractTest {
         String videoId = "To0lu_BrXTk";
 
         when(commandRunner.runAudioExtract(videoId)).thenAnswer(invocation -> {
-            Path downloaded = downloadDir.resolve("deep-meditation-" + videoId + ".m4a");
+            Path downloaded = mediaDir.resolve("deep-meditation-" + videoId + ".m4a");
             Files.writeString(downloaded, "audio");
             return 0;
         });
@@ -68,7 +66,7 @@ class MediaFileUtilsYoutubeExtractTest {
 
         assertThat(result).isNotNull();
         assertThat(result.exists()).isTrue();
-        assertThat(result.getAbsolutePath()).contains(downloadDir.toString());
+        assertThat(result.getAbsolutePath()).contains(mediaDir.toString());
         assertThat(result.getName()).contains(videoId);
         verify(commandRunner, times(1)).runAudioExtract(videoId);
     }
@@ -78,7 +76,7 @@ class MediaFileUtilsYoutubeExtractTest {
         String videoId = "r98rdmXpA2c";
 
         when(commandRunner.runAudioExtract(videoId)).thenAnswer(invocation -> {
-            Path downloaded = downloadDir.resolve("concert-" + videoId + ".m4a");
+            Path downloaded = mediaDir.resolve("concert-" + videoId + ".m4a");
             Files.writeString(downloaded, "audio");
             return 0;
         });
@@ -96,5 +94,94 @@ class MediaFileUtilsYoutubeExtractTest {
         assertThat(result.exists()).isTrue();
         verify(commandRunner, times(1)).runAudioExtract(videoId);
         verify(commandRunner, times(1)).runConvertToM4a(anyString(), anyString(), contains("96k"));
+    }
+
+    @Test
+    void given_existing_quality_download_when_extract_audio_with_same_quality_then_it_reuses_existing_quality_file() throws Exception {
+        String videoId = "qhm6KDMaqLg";
+        Path existingQualityFile = mediaDir.resolve("sample-title-" + videoId + "-music_concert.m4a");
+        Files.writeString(existingQualityFile, "audio");
+
+        File result = utils.extractAudioFromYoutubeVideoId(videoId, MediaSplitUtils.OutputQuality.MUSIC_CONCERT);
+
+        assertThat(result).isEqualTo(existingQualityFile.toFile());
+        assertThat(result.getName()).doesNotContain("-music_concert-music_concert");
+        verify(commandRunner, never()).runAudioExtract(anyString());
+        verify(commandRunner, never()).runConvertToM4a(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void given_compact_size_quality_when_extract_audio_then_it_creates_smaller_quality_specific_output() throws Exception {
+        String videoId = "fjCYYnfzRvI";
+
+        when(commandRunner.runAudioExtract(videoId)).thenAnswer(invocation -> {
+            Path downloaded = mediaDir.resolve("devotional-" + videoId + ".m4a");
+            Files.writeString(downloaded, "audio");
+            return 0;
+        });
+
+        when(commandRunner.runConvertToM4a(anyString(), anyString(), contains("80k"))).thenAnswer(invocation -> {
+            String outputFile = invocation.getArgument(1, String.class);
+            Files.writeString(Path.of(outputFile), "compact-audio");
+            return 0;
+        });
+
+        File result = utils.extractAudioFromYoutubeVideoId(videoId, MediaSplitUtils.OutputQuality.COMPACT_SIZE);
+
+        assertThat(result.getName()).contains(videoId);
+        assertThat(result.getName()).contains("compact_size");
+        assertThat(result.exists()).isTrue();
+        verify(commandRunner, times(1)).runAudioExtract(videoId);
+        verify(commandRunner, times(1)).runConvertToM4a(anyString(), anyString(), contains("80k"));
+    }
+
+    @Test
+    void given_compact_size_speech_quality_when_extract_audio_then_it_creates_speech_optimized_output() throws Exception {
+        String videoId = "B9j3pYC7Z20";
+
+        when(commandRunner.runAudioExtract(videoId)).thenAnswer(invocation -> {
+            Path downloaded = mediaDir.resolve("speech-lesson-" + videoId + ".m4a");
+            Files.writeString(downloaded, "audio");
+            return 0;
+        });
+
+        when(commandRunner.runConvertToM4a(anyString(), anyString(), contains("48k"))).thenAnswer(invocation -> {
+            String outputFile = invocation.getArgument(1, String.class);
+            Files.writeString(Path.of(outputFile), "speech-audio");
+            return 0;
+        });
+
+        File result = utils.extractAudioFromYoutubeVideoId(videoId, MediaSplitUtils.OutputQuality.COMPACT_SIZE_SPEECH);
+
+        assertThat(result.getName()).contains(videoId);
+        assertThat(result.getName()).contains("compact_size_speech");
+        assertThat(result.exists()).isTrue();
+        verify(commandRunner, times(1)).runAudioExtract(videoId);
+        verify(commandRunner, times(1)).runConvertToM4a(anyString(), anyString(), contains("48k"));
+    }
+
+    @Test
+    void given_compact_size_music_quality_when_extract_audio_then_it_creates_music_optimized_output() throws Exception {
+        String videoId = "B9j3pYC7Z20";
+
+        when(commandRunner.runAudioExtract(videoId)).thenAnswer(invocation -> {
+            Path downloaded = mediaDir.resolve("music-track-" + videoId + ".m4a");
+            Files.writeString(downloaded, "audio");
+            return 0;
+        });
+
+        when(commandRunner.runConvertToM4a(anyString(), anyString(), contains("72k"))).thenAnswer(invocation -> {
+            String outputFile = invocation.getArgument(1, String.class);
+            Files.writeString(Path.of(outputFile), "music-audio");
+            return 0;
+        });
+
+        File result = utils.extractAudioFromYoutubeVideoId(videoId, MediaSplitUtils.OutputQuality.COMPACT_SIZE_MUSIC);
+
+        assertThat(result.getName()).contains(videoId);
+        assertThat(result.getName()).contains("compact_size_music");
+        assertThat(result.exists()).isTrue();
+        verify(commandRunner, times(1)).runAudioExtract(videoId);
+        verify(commandRunner, times(1)).runConvertToM4a(anyString(), anyString(), contains("72k"));
     }
 }

@@ -8,6 +8,8 @@ import org.pssm.media.MediaPlaylistUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,6 +26,8 @@ public class MediaPlaylistStepDefinitions extends MediaBddSupport {
     private MediaPlaylistUtils playlistUtils;
 
     private File playlistFile;
+    private File labelPlaylistFile;
+    private Path targetFolder;
     private File firstTrack;
     private File secondTrack;
     private MediaPlaylistUtils.PlaylistReplayGainReport report;
@@ -40,6 +44,12 @@ public class MediaPlaylistStepDefinitions extends MediaBddSupport {
         firstTrack = copySmallMediaFile(true);
         playlistFile = createTempFile("bdd-audio-playlist-", ".m3u8");
         playlistUtils.createM3u8Playlist(playlistFile, List.of(firstTrack), false);
+    }
+
+    @Given("a copied audio file labeled {string}")
+    public void aCopiedAudioFileLabeled(String label) throws Exception {
+        firstTrack = pickAudioTestFile();
+        mediaFileUtils.addLabels(firstTrack, List.of(label));
     }
 
     @When("I add another copied media track to the playlist")
@@ -59,6 +69,17 @@ public class MediaPlaylistStepDefinitions extends MediaBddSupport {
         playlistUtils.clearTracks(playlistFile);
     }
 
+    @When("I create a playlist from label {string}")
+    public void iCreateAPlaylistFromLabel(String label) throws Exception {
+        labelPlaylistFile = playlistUtils.createPlaylistByLabel(label);
+    }
+
+    @When("I copy the playlist and tracks to a temporary target folder")
+    public void iCopyThePlaylistAndTracksToATemporaryTargetFolder() throws Exception {
+        targetFolder = Files.createTempDirectory("bdd-playlist-copy-target-");
+        playlistFile = playlistUtils.copyPlaylistAndTracksToFolder(playlistFile.getAbsolutePath(), targetFolder.toString());
+    }
+
     @Then("the playlist should contain {int} tracks")
     public void thePlaylistShouldContainTracks(int expectedCount) throws Exception {
         assertThat(playlistUtils.getPlaylistTracks(playlistFile)).hasSize(expectedCount);
@@ -67,6 +88,32 @@ public class MediaPlaylistStepDefinitions extends MediaBddSupport {
     @Then("the playlist duration should be at least {int} seconds")
     public void thePlaylistDurationShouldBeAtLeastSeconds(int minimumSeconds) throws Exception {
         assertThat(playlistUtils.getTotalDuration(playlistFile)).isGreaterThanOrEqualTo((double) minimumSeconds);
+    }
+
+    @Then("the created label playlist filename should include the label and total duration")
+    public void theCreatedLabelPlaylistFilenameShouldIncludeTheLabelAndTotalDuration() {
+        assertThat(labelPlaylistFile).isNotNull();
+        assertThat(labelPlaylistFile.getName()).matches("^bdd-heart-melting\\+\\d+\\.m3u8$");
+    }
+
+    @Then("the created label playlist should contain at least {int} tracks")
+    public void theCreatedLabelPlaylistShouldContainAtLeastTracks(int minimumTrackCount) throws Exception {
+        assertThat(playlistUtils.getPlaylistTracks(labelPlaylistFile).size()).isGreaterThanOrEqualTo(minimumTrackCount);
+    }
+
+    @Then("the copied playlist and all tracks should exist in the target folder")
+    public void theCopiedPlaylistAndAllTracksShouldExistInTheTargetFolder() throws Exception {
+        assertThat(targetFolder).isNotNull();
+        assertThat(playlistFile).isNotNull();
+        assertThat(playlistFile.exists()).isTrue();
+        assertThat(playlistFile.getParentFile().getAbsolutePath()).isEqualTo(targetFolder.toFile().getAbsolutePath());
+
+        List<File> tracks = playlistUtils.getPlaylistTracks(playlistFile);
+        assertThat(tracks).isNotEmpty();
+        assertThat(tracks).allSatisfy(track -> {
+            assertThat(track.exists()).isTrue();
+            assertThat(track.getParentFile().getAbsolutePath()).isEqualTo(targetFolder.toFile().getAbsolutePath());
+        });
     }
 
     @Given("the ReplayGain command line tool is available")

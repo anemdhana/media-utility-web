@@ -26,7 +26,7 @@ public class MediaSplitUtils {
      * Output quality presets.
      */
     public enum OutputQuality {
-        WHATSAPP, YOUTUBE_UPLOAD, MUSIC_CONCERT
+        COMPACT_SIZE, COMPACT_SIZE_SPEECH, COMPACT_SIZE_MUSIC, WHATSAPP, YOUTUBE_UPLOAD, MUSIC_CONCERT
     }
 
 
@@ -49,6 +49,21 @@ public class MediaSplitUtils {
 
         String codecOptions;
         switch (quality) {
+            case COMPACT_SIZE:
+                codecOptions = isMp3
+                        ? "-c:a libmp3lame -b:a 80k -ar 44100"
+                        : "-c:a aac -b:a 80k -ar 44100";
+                break;
+            case COMPACT_SIZE_SPEECH:
+                codecOptions = isMp3
+                        ? "-c:a libmp3lame -b:a 48k -ar 32000 -ac 1"
+                        : "-c:a aac -b:a 48k -ar 32000 -ac 1";
+                break;
+            case COMPACT_SIZE_MUSIC:
+                codecOptions = isMp3
+                        ? "-c:a libmp3lame -b:a 72k -ar 44100 -ac 2"
+                        : "-c:a aac -b:a 72k -ar 44100 -ac 2";
+                break;
             case WHATSAPP:
                 codecOptions = isMp3
                         ? "-c:a libmp3lame -b:a 96k -ar 44100"
@@ -120,6 +135,24 @@ public class MediaSplitUtils {
         String videoFilterArgs = "";
         String codecOptions;
         switch (quality) {
+            case COMPACT_SIZE:
+                if (crop != null && !crop.isBlank()) {
+                    videoFilterArgs = "-vf \"" + crop + "\"";
+                }
+                codecOptions = "-c:v libx264 -crf 28 -preset medium -c:a aac -b:a 96k -movflags +faststart";
+                break;
+            case COMPACT_SIZE_SPEECH:
+                if (crop != null && !crop.isBlank()) {
+                    videoFilterArgs = "-vf \"" + crop + "\"";
+                }
+                codecOptions = "-c:v libx264 -crf 30 -preset medium -c:a aac -b:a 64k -ar 32000 -ac 1 -movflags +faststart";
+                break;
+            case COMPACT_SIZE_MUSIC:
+                if (crop != null && !crop.isBlank()) {
+                    videoFilterArgs = "-vf \"" + crop + "\"";
+                }
+                codecOptions = "-c:v libx264 -crf 27 -preset medium -c:a aac -b:a 80k -ar 44100 -ac 2 -movflags +faststart";
+                break;
             case WHATSAPP:
                 if (crop != null && !crop.isBlank()) {
                     videoFilterArgs = "-vf \"" + crop + "\"";
