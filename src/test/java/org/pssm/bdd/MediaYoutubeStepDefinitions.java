@@ -6,7 +6,6 @@ import io.cucumber.java.en.When;
 import org.pssm.media.MediaSplitUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,10 +15,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,57 +85,19 @@ public class MediaYoutubeStepDefinitions extends MediaBddSupport {
         configuredLabels = splitCsv(propertyValue("label"));
         extractedAudioByVideoId.clear();
 
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<CompletableFuture<Map.Entry<String, File>>> futures = configuredVideoIds.stream()
-                    .map(id -> CompletableFuture.supplyAsync(() -> {
-                        try {
-                            return extractOneConfiguredYoutubeDownload(id, quality);
-                        } catch (IOException | InterruptedException e) {
-                            if (e instanceof InterruptedException) {
-                                Thread.currentThread().interrupt();
-                            }
-                            throw new CompletionException(e);
-                        }
-                    }, executor))
-                    .toList();
-            for (CompletableFuture<Map.Entry<String, File>> future : futures) {
-                try {
-                    Map.Entry<String, File> entry = future.join();
-                    extractedAudioByVideoId.put(entry.getKey(), entry.getValue());
-                } catch (CompletionException ex) {
-                    Throwable cause = ex.getCause();
-                    if (cause instanceof AssertionError) {
-                        throw (AssertionError) cause;
-                    }
-                    if (cause instanceof IOException) {
-                        throw (IOException) cause;
-                    }
-                    if (cause instanceof InterruptedException) {
-                        throw (InterruptedException) cause;
-                    }
-                    if (cause != null) {
-                        throw new RuntimeException(cause);
-                    }
-                    throw ex;
-                }
+        for (String configuredVideoId : configuredVideoIds) {
+            File firstResult = mediaFileUtils.extractAudioFromYoutubeVideoId(configuredVideoId, quality);
+            if (!configuredLabels.isEmpty()) {
+                mediaFileUtils.addLabels(firstResult, configuredLabels);
             }
-        }
-    }
 
-    private Map.Entry<String, File> extractOneConfiguredYoutubeDownload(String configuredVideoId,
-                                                                        MediaSplitUtils.OutputQuality quality)
-            throws IOException, InterruptedException {
-        File firstResult = mediaFileUtils.extractAudioFromYoutubeVideoId(configuredVideoId, quality);
-        if (!configuredLabels.isEmpty()) {
-            mediaFileUtils.addLabels(firstResult, configuredLabels);
-        }
-
-        File secondResult = mediaFileUtils.extractAudioFromYoutubeVideoId(configuredVideoId, quality);
-        assertThat(secondResult.getAbsolutePath())
+            File secondResult = mediaFileUtils.extractAudioFromYoutubeVideoId(configuredVideoId, quality);
+            assertThat(secondResult.getAbsolutePath())
                 .as("Expected existing download to be reused for videoId %s", configuredVideoId)
                 .isEqualTo(firstResult.getAbsolutePath());
 
-        return Map.entry(configuredVideoId, secondResult);
+            extractedAudioByVideoId.put(configuredVideoId, secondResult);
+        }
     }
 
     @Then("the extracted audio file should exist")
