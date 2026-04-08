@@ -9,9 +9,15 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @RestController
@@ -30,27 +36,100 @@ public class MediaYoutubeController {
     }
 
     @PostMapping("/youtube/audio-extract")
-    public Map<String, String> extractAudioFromYoutube(@RequestParam("videoId") String videoId,
-                                                        @RequestParam(value = "quality", required = false) String quality) {
-        String normalizedVideoId = videoId == null ? "" : videoId.trim();
-        if (normalizedVideoId.isEmpty()) {
+    public Object extractAudioFromYoutube(@RequestParam("videoId") String videoId,
+                                          @RequestParam(value = "quality", required = false) String quality) {
+        List<String> videoIds = parseVideoIds(videoId);
+        if (videoIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "videoId is required");
         }
 
         MediaSplitUtils.OutputQuality outputQuality = parseOutputQuality(quality);
 
+        if (videoIds.size() == 1) {
+            String singleId = videoIds.get(0);
+            try {
+                File downloaded = mediaFileUtils.extractAudioFromYoutubeVideoId(singleId, outputQuality);
+                return Map.of(
+                        "videoId", singleId,
+                        "quality", outputQuality.name(),
+                        "path", downloaded.getAbsolutePath(),
+                        "fileName", downloaded.getName()
+                );
+            } catch (IOException | InterruptedException ex) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Failed to extract audio for videoId " + singleId, ex);
+            }
+        }
+
+        List<Map<String, String>> results = extractAudioBatchParallel(videoIds, outputQuality);
+        return Map.of(
+                "quality", outputQuality.name(),
+                "results", results
+        );
+    }
+
+    /**
+     * Runs one yt-dlp/ffmpeg pipeline per video id concurrently (virtual threads) while preserving
+     * response order to match the request list.
+     */
+    private List<Map<String, String>> extractAudioBatchParallel(List<String> videoIds,
+                                                                MediaSplitUtils.OutputQuality outputQuality) {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<Map<String, String>>> futures = videoIds.stream()
+                    .map(id -> CompletableFuture.supplyAsync(() -> extractSingleBatchEntry(id, outputQuality), executor))
+                    .toList();
+            List<Map<String, String>> results = new ArrayList<>(videoIds.size());
+            for (CompletableFuture<Map<String, String>> future : futures) {
+                try {
+                    results.add(future.join());
+                } catch (CompletionException ex) {
+                    throw unwrapBatchExtractFailure(ex);
+                }
+            }
+            return results;
+        }
+    }
+
+    private Map<String, String> extractSingleBatchEntry(String id, MediaSplitUtils.OutputQuality outputQuality) {
         try {
-            File downloaded = mediaFileUtils.extractAudioFromYoutubeVideoId(normalizedVideoId, outputQuality);
+            File downloaded = mediaFileUtils.extractAudioFromYoutubeVideoId(id, outputQuality);
             return Map.of(
-                    "videoId", normalizedVideoId,
-                    "quality", outputQuality.name(),
+                    "videoId", id,
                     "path", downloaded.getAbsolutePath(),
                     "fileName", downloaded.getName()
             );
-        } catch (IOException | InterruptedException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to extract audio for videoId " + normalizedVideoId, ex);
+        } catch (IOException ex) {
+            throw new UncheckedIOException("Failed to extract audio for videoId " + id, ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new UncheckedIOException(
+                    new IOException("Interrupted while extracting audio for videoId " + id, ex));
         }
+    }
+
+    private static ResponseStatusException unwrapBatchExtractFailure(CompletionException ex) {
+        Throwable cause = ex.getCause();
+        if (cause instanceof UncheckedIOException) {
+            IOException io = ((UncheckedIOException) cause).getCause();
+            return new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    cause.getMessage(), io != null ? io : cause);
+        }
+        if (cause instanceof IOException) {
+            IOException io = (IOException) cause;
+            return new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, io.getMessage(), io);
+        }
+        return new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Failed to extract audio", cause != null ? cause : ex);
+    }
+
+    private static List<String> parseVideoIds(String videoId) {
+        if (videoId == null || videoId.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(videoId.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 
     @PostMapping("/playlists/by-label")

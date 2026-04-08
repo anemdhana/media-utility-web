@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -53,6 +52,35 @@ class MediaYoutubeControllerTest {
                 .andExpect(jsonPath("$.fileName").value(downloaded.getName()));
 
         verify(mediaFileUtils).extractAudioFromYoutubeVideoId(videoId, MediaSplitUtils.OutputQuality.YOUTUBE_UPLOAD);
+    }
+
+    @Test
+    void given_comma_separated_video_ids_when_extract_audio_endpoint_is_called_then_it_downloads_each_and_returns_results()
+            throws Exception {
+        String id1 = "To0lu_BrXTk";
+        String id2 = "JyNedPZesLE";
+        File file1 = new File("C:/tmp/track-" + id1 + ".m4a");
+        File file2 = new File("C:/tmp/track-" + id2 + ".m4a");
+
+        when(mediaFileUtils.extractAudioFromYoutubeVideoId(id1, MediaSplitUtils.OutputQuality.YOUTUBE_UPLOAD))
+                .thenReturn(file1);
+        when(mediaFileUtils.extractAudioFromYoutubeVideoId(id2, MediaSplitUtils.OutputQuality.YOUTUBE_UPLOAD))
+                .thenReturn(file2);
+
+        mockMvc.perform(post("/api/media/youtube/audio-extract")
+                        .param("videoId", id1 + " , " + id2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quality").value("YOUTUBE_UPLOAD"))
+                .andExpect(jsonPath("$.results.length()").value(2))
+                .andExpect(jsonPath("$.results[0].videoId").value(id1))
+                .andExpect(jsonPath("$.results[0].path").value(file1.getAbsolutePath()))
+                .andExpect(jsonPath("$.results[0].fileName").value(file1.getName()))
+                .andExpect(jsonPath("$.results[1].videoId").value(id2))
+                .andExpect(jsonPath("$.results[1].path").value(file2.getAbsolutePath()))
+                .andExpect(jsonPath("$.results[1].fileName").value(file2.getName()));
+
+        verify(mediaFileUtils).extractAudioFromYoutubeVideoId(id1, MediaSplitUtils.OutputQuality.YOUTUBE_UPLOAD);
+        verify(mediaFileUtils).extractAudioFromYoutubeVideoId(id2, MediaSplitUtils.OutputQuality.YOUTUBE_UPLOAD);
     }
 
     @Test

@@ -45,7 +45,7 @@ Feature: YouTube audio extraction
     And the extracted audio file should be non-empty
 
   @youtube-media-input-properties
-  Scenario: Extract YouTube audio based on configured media input properties
+  Scenario: Extract YouTube audio from media input properties (single or comma-separated videoId)
     Given the media input properties file "media-input.properties"
     When I execute the configured media feature
     Then all configured YouTube downloads should exist
