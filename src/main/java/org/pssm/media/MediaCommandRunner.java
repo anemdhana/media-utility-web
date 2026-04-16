@@ -19,10 +19,16 @@ public class MediaCommandRunner {
     private String downloadLocation;
     @Value("${audio_extract}")
     private String audioExtractCmd;
+    @Value("${thumbnail_extract}")
+    private String thumbnailExtractCmd;
+    @Value("${playlist_audio_extract}")
+    private String playlistAudioExtractCmd;
     @Value("${convert_to_m4a}")
     private String convertToM4aCmd;
     @Value("${audio_split}")
     private String audioSplitCmd;
+    @Value("${audio_extract_split}")
+    private String audioExtractSplitCmd;
     @Value("${video_extract}")
     private String videoExtractCmd;
     @Value("${video_resize}")
@@ -40,6 +46,24 @@ public class MediaCommandRunner {
         params.put("downloadLocation", downloadLocation);
         params.put("videoId", videoId);
         String cmd = substitute(audioExtractCmd, params);
+        return runShell(cmd);
+    }
+
+    public int runThumbnailExtract(String videoId) throws IOException, InterruptedException {
+        Map<String, String> params = new HashMap<>();
+        params.put("toolsLocation", toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/");
+        params.put("downloadLocation", downloadLocation);
+        params.put("videoId", videoId);
+        String cmd = substitute(thumbnailExtractCmd, params);
+        return runShell(cmd);
+    }
+
+    public int runPlaylistAudioExtract(String playlistId) throws IOException, InterruptedException {
+        Map<String, String> params = new HashMap<>();
+        params.put("toolsLocation", toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/");
+        params.put("downloadLocation", downloadLocation);
+        params.put("playlistId", playlistId);
+        String cmd = substitute(playlistAudioExtractCmd, params);
         return runShell(cmd);
     }
 
@@ -70,6 +94,20 @@ public class MediaCommandRunner {
         params.put("codecOptions", codecOptions != null ? codecOptions : "");
         params.put("formatOptions", formatOptions != null ? formatOptions : "");
         String cmd = substitute(audioSplitCmd, params).trim();
+        return runShell(cmd);
+    }
+
+    public int runAudioExtractAndSplit(String videoId, String outputFile, String startTime, String endTime,
+                                       String codecOptions, String formatOptions) throws IOException, InterruptedException {
+        Map<String, String> params = new HashMap<>();
+        params.put("toolsLocation", toolsLocation.endsWith("/") ? toolsLocation : toolsLocation + "/");
+        params.put("videoId", videoId);
+        params.put("outputFile", outputFile);
+        params.put("startTime", startTime);
+        params.put("endTime", endTime);
+        params.put("codecOptions", codecOptions != null ? codecOptions : "");
+        params.put("formatOptions", formatOptions != null ? formatOptions : "");
+        String cmd = substitute(audioExtractSplitCmd, params).trim();
         return runShell(cmd);
     }
 

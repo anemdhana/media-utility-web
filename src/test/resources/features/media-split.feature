@@ -31,3 +31,15 @@ Feature: Media splitting
     When I split the selected media clip from "00:12:30" to "00:15:50" for "WHATSAPP" sharing
     Then the created audio clip should exist
     And the created audio clip should be non-empty
+
+  @split-media-input-properties-driven
+  Scenario Outline: Execute configured media split feature from input properties
+    Given the media split input scenario "<scenarioKey>"
+    When I execute the configured media split feature
+    Then the configured media split output should exist
+    And the configured media split output should be non-empty
+
+    @split-media-input-whatsapp-compact-video
+    Examples:
+      | scenarioKey              |
+      | whatsapp_compact_video   |

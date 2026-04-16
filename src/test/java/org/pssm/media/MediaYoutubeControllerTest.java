@@ -146,6 +146,24 @@ class MediaYoutubeControllerTest {
     }
 
     @Test
+    void given_compact_music_instrumental_quality_parameter_when_extract_audio_endpoint_is_called_then_it_uses_requested_quality() throws Exception {
+        String videoId = "B9j3pYC7Z20";
+        File downloaded = new File("C:/tmp/sample-" + videoId + "-compact_music_instrumental.m4a");
+
+        when(mediaFileUtils.extractAudioFromYoutubeVideoId(videoId, MediaSplitUtils.OutputQuality.COMPACT_MUSIC_INSTRUMENTAL)).thenReturn(downloaded);
+
+        mockMvc.perform(post("/api/media/youtube/audio-extract")
+                        .param("videoId", videoId)
+                        .param("quality", "compact_music_instrumental"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.videoId").value(videoId))
+                .andExpect(jsonPath("$.quality").value("COMPACT_MUSIC_INSTRUMENTAL"))
+                .andExpect(jsonPath("$.path").value(downloaded.getAbsolutePath()));
+
+        verify(mediaFileUtils).extractAudioFromYoutubeVideoId(eq(videoId), eq(MediaSplitUtils.OutputQuality.COMPACT_MUSIC_INSTRUMENTAL));
+    }
+
+    @Test
     void given_invalid_quality_parameter_when_extract_audio_endpoint_is_called_then_it_returns_bad_request() throws Exception {
         mockMvc.perform(post("/api/media/youtube/audio-extract")
                         .param("videoId", "r98rdmXpA2c")

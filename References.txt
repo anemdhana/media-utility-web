@@ -1,0 +1,72 @@
+# all properties-driven scenarios
+mvn -Dtest=MediaBddTest "-Dcucumber.filter.tags=@youtube-media-input-properties-driven and not @ignore" test
+
+# single_video only
+mvn -Dtest=MediaBddTest "-Dcucumber.filter.tags=@youtube-media-input-single-video and not @ignore" test
+
+# playlist only
+mvn -Dtest=MediaBddTest "-Dcucumber.filter.tags=@youtube-media-input-playlist and not @ignore" test
+
+# thumbnail only
+mvn -Dtest=MediaBddTest "-Dcucumber.filter.tags=@youtube-media-input-thumbnail and not @ignore" test
+
+# extract_split only
+mvn -Dtest=MediaBddTest "-Dcucumber.filter.tags=@youtube-media-input-extract-split and not @ignore" test
+
+mvn -Dtest=MediaBddTest "-Dcucumber.filter.tags=@split-media-input-whatsapp-compact-video and not @ignore" test
+
+# Edit pipeline.properties, then just:
+python scripts/run_pipeline.py
+
+# Override a single value on the fly:
+python scripts/run_pipeline.py --speaker "Dr. Newton"
+
+# Run only step 2 and 3 (transcript already exists):
+# set steps=2,3 in properties, then:
+python scripts/run_pipeline.py
+
+
+
+# Hindi only
+python yt_caption_extract.py VIDEO_ID --lang hi
+
+# English and Hindi mixed
+python yt_caption_extract.py VIDEO_ID --lang en,hi
+
+# English variants and Hindi
+python yt_caption_extract.py VIDEO_ID --lang "en.*,hi"
+
+# With properties file
+python yt_caption_extract.py --props media-input.properties --scenario extract_split
+
+# Transcribe YouTube video in Hindi
+python scripts/yt_transcribe_whisper.py dQw4w9WgXcQ --lang hi
+
+# Transcribe local audio in English
+python scripts/yt_transcribe_whisper.py --audio local_audio.mp3 --lang en
+
+# Auto-detect language
+python scripts/yt_transcribe_whisper.py dQw4w9WgXcQ --lang auto
+
+# Use properties file
+python scripts/yt_transcribe_whisper.py --props src/test/resources/media-input.properties
+
+# Faster transcription (smaller model)
+python scripts/yt_transcribe_whisper.py dQw4w9WgXcQ --model tiny
+
+
+# PROMPTS
+1. Extract the audio from the given youtube videoId
+1.1. Use the config property, audio_extract
+1.2. Hope the size of the audio file is acceptable, yet it is best audio quality, ensure videoId is there in the file name.
+1.3. Don't download again if already exists.
+1.4. return the path of the file that is downloaded.
+
+
+Can you enhance this method to accept optinoal parameter, quality output type such as whatsapp, etc,
+
+can you add bdd test for the video id, r98rdmXpA2c
+
+
+can you beautify it for kindle pleasant reading with right split of the lines with context. This is Telugu language.
+C:\Users\dhana\GitHub\media-utility-web\conscious_relationships_drlakshmi_newton.captions.txt

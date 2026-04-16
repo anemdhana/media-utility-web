@@ -26,7 +26,7 @@ public class MediaSplitUtils {
      * Output quality presets.
      */
     public enum OutputQuality {
-        COMPACT_SIZE, COMPACT_SIZE_SPEECH, COMPACT_SIZE_MUSIC, WHATSAPP, YOUTUBE_UPLOAD, MUSIC_CONCERT
+        COMPACT_SIZE, COMPACT_SIZE_SPEECH, COMPACT_SIZE_MUSIC, COMPACT_MUSIC_INSTRUMENTAL, WHATSAPP, WHATSAPP_COMPACT_VIDEO, YOUTUBE_UPLOAD, MUSIC_CONCERT
     }
 
 
@@ -64,10 +64,21 @@ public class MediaSplitUtils {
                         ? "-c:a libmp3lame -b:a 72k -ar 44100 -ac 2"
                         : "-c:a aac -b:a 72k -ar 44100 -ac 2";
                 break;
+                case COMPACT_MUSIC_INSTRUMENTAL:
+                codecOptions = isMp3
+                    ? "-c:a libmp3lame -b:a 72k -ar 44100 -ac 2"
+                    : "-c:a aac -b:a 72k -ar 44100 -ac 2";
+                break;
             case WHATSAPP:
                 codecOptions = isMp3
                         ? "-c:a libmp3lame -b:a 96k -ar 44100"
                         : "-c:a aac -b:a 96k -ar 44100";
+                break;
+                case WHATSAPP_COMPACT_VIDEO:
+                // Video-focused preset; keep audio profile share-friendly when used for audio splitting.
+                codecOptions = isMp3
+                    ? "-c:a libmp3lame -b:a 64k -ar 32000 -ac 1"
+                    : "-c:a aac -b:a 64k -ar 32000 -ac 1";
                 break;
             case YOUTUBE_UPLOAD:
                 codecOptions = isMp3
@@ -153,11 +164,28 @@ public class MediaSplitUtils {
                 }
                 codecOptions = "-c:v libx264 -crf 27 -preset medium -c:a aac -b:a 80k -ar 44100 -ac 2 -movflags +faststart";
                 break;
+            case COMPACT_MUSIC_INSTRUMENTAL:
+                if (crop != null && !crop.isBlank()) {
+                    videoFilterArgs = "-vf \"" + crop + "\"";
+                }
+                codecOptions = "-c:v libx264 -crf 27 -preset medium -c:a aac -b:a 80k -ar 44100 -ac 2 -movflags +faststart";
+                break;
             case WHATSAPP:
                 if (crop != null && !crop.isBlank()) {
                     videoFilterArgs = "-vf \"" + crop + "\"";
                 }
                 codecOptions = "-c:v libx264 -crf 23 -preset medium -c:a aac -b:a 128k -fs 15M -movflags +faststart";
+                break;
+            case WHATSAPP_COMPACT_VIDEO:
+                // Sharing-optimized compact profile for messaging apps.
+                // If crop is present, apply crop first, then compaction filters.
+                String compactShareFilter = "scale='min(854,iw)':-2,fps=24";
+                if (crop != null && !crop.isBlank()) {
+                    videoFilterArgs = "-vf \"" + crop + "," + compactShareFilter + "\"";
+                } else {
+                    videoFilterArgs = "-vf \"" + compactShareFilter + "\"";
+                }
+                codecOptions = "-c:v libx264 -crf 30 -preset medium -c:a aac -b:a 64k -ar 32000 -ac 1 -fs 15M -movflags +faststart";
                 break;
             case YOUTUBE_UPLOAD:
                 if (crop != null && !crop.isBlank()) {
