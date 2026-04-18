@@ -185,7 +185,7 @@ public class MediaSplitUtils {
                 } else {
                     videoFilterArgs = "-vf \"" + compactShareFilter + "\"";
                 }
-                codecOptions = "-c:v libx264 -crf 30 -preset medium -c:a aac -b:a 64k -ar 32000 -ac 1 -fs 15M -movflags +faststart";
+                codecOptions = "-c:v libx264 -crf 30 -preset medium -c:a aac -b:a 64k -ar 32000 -ac 1 -movflags +faststart";
                 break;
             case YOUTUBE_UPLOAD:
                 if (crop != null && !crop.isBlank()) {

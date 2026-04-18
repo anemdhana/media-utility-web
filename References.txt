@@ -34,7 +34,9 @@ python yt_caption_extract.py VIDEO_ID --lang hi
 python yt_caption_extract.py VIDEO_ID --lang en,hi
 
 # English variants and Hindi
-python yt_caption_extract.py VIDEO_ID --lang "en.*,hi"
+python scripts/yt_caption_extract.py --props src/test/resources/media-input.properties --lang "en.*,hi"
+python scripts/yt_transcribe_whisper.py --props src/test/resources/media-input.properties --lang "en.*,hi"
+
 
 # With properties file
 python yt_caption_extract.py --props media-input.properties --scenario extract_split
@@ -55,6 +57,10 @@ python scripts/yt_transcribe_whisper.py --props src/test/resources/media-input.p
 python scripts/yt_transcribe_whisper.py dQw4w9WgXcQ --model tiny
 
 
+
+
+python scripts\batch_whatsapp_compact.py
+
 # PROMPTS
 1. Extract the audio from the given youtube videoId
 1.1. Use the config property, audio_extract
@@ -70,3 +76,10 @@ can you add bdd test for the video id, r98rdmXpA2c
 
 can you beautify it for kindle pleasant reading with right split of the lines with context. This is Telugu language.
 C:\Users\dhana\GitHub\media-utility-web\conscious_relationships_drlakshmi_newton.captions.txt
+
+
+can you analyze this better, split into speaker wise conversations, there are 2 speakers here, also, at the end QnA happens, enhance this text for for booklet reading with kindle reader.
+C:\Users\dhana\media-files\Soulcast with Shreans Daga - Decoding Spiritual Quotes & Concepts - Episode 43.transcript.txt
+
+can you analyze this better, split into right header sections, paragraphs, also, at the end QnA happens, enhance this text for for booklet reading with kindle reader, this is telugu text use google cloud online if required, need proper commas, full stops without compromising on accuracy.
+"C:\Users\dhana\media-files\Jnanodayam-Swasa Maha Vidya\12_జ్ఞానోదయం on Swasa Maha Vidya - Bonus Episode by Dr. Newton Kondaveti - Day 63-N-GrLFu7CvU-compact_size_speech_punctuated_v7.txt"

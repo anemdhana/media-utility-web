@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -280,26 +281,56 @@ def transcribe_audio(
     if primary_lang == "auto":
         primary_lang = None  # None means auto-detect
 
-    logger.info("Loading Whisper model...")
+    logger.info("Loading Whisper model '%s'...", model_size)
     try:
+        t0 = time.time()
         # Options: tiny, base, small, medium, large
         model = WhisperModel(model_size, device="auto", compute_type="auto")
+        logger.info("Model loaded in %.1f seconds.", time.time() - t0)
     except Exception as exc:
         logger.error("Failed to load Whisper model: %s", exc)
         return None
 
     logger.info("Transcribing audio (language: %s)...", primary_lang or "auto-detect")
     try:
+        t0 = time.time()
         segments, info = model.transcribe(str(audio_file), language=primary_lang)
-        # Convert generator to list of dicts
+        audio_duration = info.duration
+        logger.info(
+            "Audio duration: %s (%.0f seconds). Detected language: %s (prob=%.2f)",
+            format_ts(audio_duration), audio_duration,
+            info.language, info.language_probability,
+        )
+        # Convert generator to list of dicts, logging progress periodically
         result = []
+        last_pct_logged = -1
         for segment in segments:
             result.append({
                 "start": segment.start,
                 "end": segment.end,
                 "text": segment.text.strip(),
             })
-        logger.info("Transcribed %d segments", len(result))
+            # Log progress every ~10%
+            if audio_duration > 0:
+                pct = int(segment.end / audio_duration * 100)
+                pct_bucket = pct // 10 * 10
+                if pct_bucket > last_pct_logged and pct_bucket <= 100:
+                    elapsed = time.time() - t0
+                    logger.info(
+                        "  Progress: %3d%% (%s / %s) | %d segments | elapsed %.0fs",
+                        min(pct, 100),
+                        format_ts(segment.end),
+                        format_ts(audio_duration),
+                        len(result),
+                        elapsed,
+                    )
+                    last_pct_logged = pct_bucket
+        elapsed_total = time.time() - t0
+        logger.info(
+            "Transcribed %d segments in %.1f seconds (%.1fx realtime).",
+            len(result), elapsed_total,
+            audio_duration / elapsed_total if elapsed_total > 0 else 0,
+        )
         return result
     except Exception as exc:
         logger.error("Transcription failed: %s", exc)
